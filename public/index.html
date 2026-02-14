@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Auth Server – Authenticated Web Messaging</title>
+
+    <style>
+        body {
+            margin: 0;
+            padding: 32px;
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+            background: #0b1220;
+            color: #fff;
+        }
+
+        h1 {
+            margin-top: 0;
+        }
+
+        .card {
+            max-width: 860px;
+            margin: auto;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 14px;
+            padding: 20px;
+        }
+
+        .row {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+            margin: 14px 0;
+        }
+
+        button {
+            padding: 10px 14px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            background: rgba(255, 255, 255, 0.08);
+            color: #fff;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        button.primary {
+            background: linear-gradient(90deg, #6d7cff, #3ddcff);
+            border-color: transparent;
+            color: #071225;
+        }
+
+        button.danger {
+            background: rgba(239, 68, 68, 0.2);
+            border-color: rgba(239, 68, 68, 0.45);
+        }
+
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.08);
+            font-size: 13px;
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #9ca3af;
+        }
+
+        .dot.ok {
+            background: #22c55e;
+        }
+
+        .dot.bad {
+            background: #ef4444;
+        }
+
+        .log {
+            margin-top: 14px;
+            padding: 12px;
+            height: 220px;
+            overflow: auto;
+            background: rgba(0, 0, 0, 0.25);
+            border-radius: 10px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        code {
+            background: rgba(255, 255, 255, 0.12);
+            padding: 2px 6px;
+            border-radius: 6px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="card">
+        <h1>Auth Server – Authenticated Web Messaging</h1>
+
+        <p>
+            This page is served by the <b>authServer</b>.
+            It starts OIDC authentication and provides authorization codes to
+            <b>Genesys Web Messaging</b> via an <code>AuthProvider</code>.
+        </p>
+
+        <div class="row">
+            <button class="primary" id="loginBtn">Sign in & Start</button>
+            <button class="danger" id="logoutBtn">Logout</button>
+            <button id="refreshBtn">Refresh status</button>
+
+            <span class="status">
+                <span class="dot" id="statusDot"></span>
+                <span id="statusText">Checking…</span>
+            </span>
+        </div>
+
+        <h3>Debug log</h3>
+        <div class="log" id="log"></div>
+        <button id="clearLogBtn">Clear log</button>
+    </div>
+
+    <script>
+        // ---------- Logging ----------
+        const logEl = document.getElementById('log');
+
+        const LOG_KEY = 'debug_log_lines_v2';
+
+        function setLogText(fullText) {
+            logEl.textContent = fullText;
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        async function refreshServerLogs() {
+            try {
+                const r = await fetch('/auth/server-logs', { credentials: 'include', cache: 'no-store' });
+                const j = await r.json();
+                if (j && Array.isArray(j.lines)) {
+                    setLogText(j.lines.join('\n') + '\n');
+                }
+            } catch (e) {
+                // ignore
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await refreshServerLogs();
+
+            // optional: keep live-updating while you debug
+            setInterval(refreshServerLogs, 1500);
+        });
+
+        function getLogEl() {
+            return document.getElementById('log');
+        }
+
+        function restoreLogs() {
+            const el = getLogEl();
+            if (!el) return;
+
+            const saved = localStorage.getItem(LOG_KEY);
+            if (saved) el.textContent = saved;
+            el.scrollTop = el.scrollHeight;
+        }
+
+        function persistLogs() {
+            const el = getLogEl();
+            if (!el) return;
+
+            // keep last ~500 lines to avoid unlimited growth
+            const lines = el.textContent.split('\n');
+            const trimmed = lines.slice(Math.max(0, lines.length - 500)).join('\n');
+            el.textContent = trimmed;
+            localStorage.setItem(LOG_KEY, trimmed);
+        }
+
+        function log(msg) {
+            const el = getLogEl();
+            if (!el) return;
+
+            const ts = new Date().toISOString().replace('T', ' ').replace('Z', '');
+            el.textContent += `[${ts}] ${msg}\n`;
+            el.scrollTop = el.scrollHeight;
+            persistLogs();
+        }
+
+        function clearLogs() {
+            localStorage.removeItem(LOG_KEY);
+            const el = getLogEl();
+            if (el) el.textContent = '';
+        }
+
+        // Make log/clearLogs available to other scripts (Genesys plugin script, etc.)
+        window.log = log;
+        window.clearLogs = clearLogs;
+
+        // Restore as soon as DOM is ready (before other handlers log)
+        document.addEventListener('DOMContentLoaded', () => {
+            restoreLogs();
+
+            const btn = document.getElementById('clearLogBtn');
+            if (btn) btn.addEventListener('click', clearLogs);
+
+            // Useful marker to confirm persistence works across refresh/redirect
+            log('Page loaded (logs restored from sessionStorage if present).');
+        });
+
+        // ---------- Status ----------
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+
+        async function refreshStatus() {
+            try {
+                const r = await fetch('/auth/status', { credentials: 'include' });
+                const t = await r.text();
+                let j = { signedIn: false };
+                try { j = t ? JSON.parse(t) : j; } catch { }
+
+                if (j.signedIn) {
+                    statusDot.className = 'dot ok';
+                    statusText.textContent = 'Signed in';
+                } else {
+                    statusDot.className = 'dot bad';
+                    statusText.textContent = 'Signed out';
+                }
+
+                log(`Status: signedIn=${Boolean(j.signedIn)}`);
+            } catch (e) {
+                statusDot.className = 'dot bad';
+                statusText.textContent = 'Status error';
+                log(`Status error: ${e}`);
+            }
+        }
+
+        document.getElementById('loginBtn').onclick = () => {
+            log('Redirecting to /auth/start');
+            window.location.assign('/auth/start');
+        };
+
+        document.getElementById('logoutBtn').onclick = async () => {
+            log('POST /auth/logout');
+            try {
+                // 1) logout authServer
+                await fetch('/auth/logout', { method: 'POST', credentials: 'include', cache: 'no-store' });
+
+                // 2) logout IdP (top-level navigation is simplest in a demo)
+                window.location.assign('https://myidp.onrender.com/logout');
+
+                // Immediately re-check session from server
+                await refreshStatus();
+            } catch (e) {
+                console.error('Logout failed', e);
+            }
+        };
+
+        document.getElementById('refreshBtn').onclick = refreshStatus;
+        document.getElementById('clearLogBtn').addEventListener('click', clearLogs);
+
+        refreshStatus();
+    </script>
+
+    <!-- =========================================================
+       PASTE YOUR GENESYS WEB MESSAGING SNIPPET BELOW
+       (from Genesys Cloud deployment)
+       ========================================================= -->
+    <script type="text/javascript" charset="utf-8">
+        (function (g, e, n, es, ys) {
+            g['_genesysJs'] = e;
+            g[e] = g[e] || function () { (g[e].q = g[e].q || []).push(arguments) };
+            g[e].t = 1 * new Date();
+            g[e].c = es;
+            ys = document.createElement('script');
+            ys.async = 1;
+            ys.src = n;
+            ys.charset = 'utf-8';
+            document.head.appendChild(ys);
+        })(window, 'Genesys', 'https://apps.mypurecloud.ie/genesys-bootstrap/genesys.min.js', {
+            environment: 'mypurecloud.ie',
+            deploymentId: '7c5f5753-2d3b-4aad-8dd8-6b4fa0a8ab77'
+        });
+
+        // Call messenger commands only after ready
+        Genesys('subscribe', 'Messenger.ready', function () {
+            console.log("Messenger.ready");
+            Genesys('command', 'Messenger.configure', {});
+            // optional:
+            Genesys('command', 'Messenger.open', () => {
+                console.log('Messenger.open');
+            }
+            );
+        });
+    </script>
+
+    <!-- =========================================================
+       AuthProvider plugin – supplies authCode to Messenger
+       ========================================================= -->
+    <script>
+        (function registerAuthProviderWhenReady() {
+            if (typeof Genesys !== 'function') {
+                setTimeout(registerAuthProviderWhenReady, 200);
+                return;
+            }
+
+            Genesys('registerPlugin', 'AuthProvider', function (AuthProvider) {
+
+                async function fetchAuthPayload() {
+                    const r = await fetch('/auth/code', {
+                        credentials: 'include',
+                        cache: 'no-store'
+                    });
+                    if (!r.ok) return null;
+                    const j = await r.json().catch(() => null);
+                    if (!j || !j.authenticated) return null;
+                    return j;
+                }
+
+                // Mandatory: provide authCode/redirectUri (+ optional codeVerifier for PKCE)
+                AuthProvider.registerCommand('getAuthCode', async function (e) {
+                    const data = await fetchAuthPayload();
+                    if (!data) return e.reject && e.reject(new Error('NOT_SIGNED_IN'));
+
+                    const payload = {
+                        authCode: data.authCode,
+                        redirectUri: data.redirectUri,
+                        nonce: data.nonce
+                    };
+                    if (data.codeVerifier) payload.codeVerifier = data.codeVerifier;
+
+                    // auth codes are one-time use; mark consumed (optional)
+                    fetch('/auth/consume', { method: 'POST', credentials: 'include' }).catch(() => { });
+                    e.resolve(payload);
+                });
+
+                // Step-up sign-in requested by Messenger -> redirect to your login start
+                AuthProvider.registerCommand('signIn', function (_e) {
+                    window.location.assign('/auth/start');
+                });
+
+                // Re-auth requested by Messenger (expired/invalid auth) -> login again
+                AuthProvider.registerCommand('reAuthenticate', function (_e) {
+                    window.location.assign('/auth/start');
+                });
+            });
+        })();
+    </script>
+
+    <script>
+        (function openMessengerWhenReady() {
+            if (typeof Genesys !== 'function') {
+                setTimeout(openMessengerWhenReady, 200);
+                return;
+            }
+
+            Genesys('subscribe', 'Messenger.ready', function () {
+                Genesys('command', 'Messenger.open', {}, function () {
+                    // opened
+                }, function (err) {
+                    console.error("Couldn't open Messenger.", err);
+                });
+            });
+        })();
+    </script>
+</body>
+
+</html>

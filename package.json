@@ -1,0 +1,16 @@
+{
+  "name": "auth-server",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "dev": "nodemon authServer.js",
+    "start": "node authServer.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "express-session": "^1.17.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
+  }
+}
