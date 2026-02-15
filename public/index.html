@@ -301,60 +301,47 @@
             return r.json();
         }
 
-        // Register AuthProvider so Messenger can request authCode whenever it needs it
-        Genesys("registerPlugin", "AuthProvider", (AuthProvider) => {
-            AuthProvider.registerCommand("getAuthCode", async (resolve, reject) => {
+        // After the Genesys snippet
+        /* Genesys('registerPlugin', 'AuthProvider', (AuthProvider) => {
+            AuthProvider.registerCommand('getAuthCode', async (e) => {
                 try {
-                    const auth = await fetchAuthResult();
+                    const r = await fetch('/auth/code', { credentials: 'include', cache: 'no-store' });
+                    if (!r.ok) return e.reject(new Error('NOT_SIGNED_IN'));
 
-                    // You provide the auth code package to Messenger.
-                    // Messenger will exchange it for a Genesys JWT internally. :contentReference[oaicite:3]{index=3}
-                    resolve({
-                        authCode: auth.code,
-                        redirectUri: auth.redirectUri,
+                    const j = await r.json();
+                    if (!j?.authenticated) return e.reject(new Error('NOT_SIGNED_IN'));
 
-                        // PKCE support (if you use it)
-                        codeVerifier: auth.codeVerifier, // optional; required if PKCE enabled :contentReference[oaicite:4]{index=4}
+                    const payload = { authCode: j.authCode, redirectUri: j.redirectUri };
+                    if (j.codeVerifier) payload.codeVerifier = j.codeVerifier;
 
-                        // Optional fields depending on IdP (Okta often uses/returns these)
-                        nonce: auth.nonce,
-                        iss: auth.iss,
-                        maxAge: auth.maxAge,
-
-                        // Optional if you implemented refresh token handling
-                        refreshToken: auth.refreshToken
-                    });
-                } catch (e) {
-                    reject(e);
+                    e.resolve(payload);
+                } catch (err) {
+                    e.reject(err);
                 }
             });
 
-            // When Messenger decides the current auth is no longer valid, it calls this.
-            AuthProvider.registerCommand("reAuthenticate", async (resolve) => {
-                // In most sites: trigger a fresh login redirect, then resolve (or let reload happen).
-                window.location.href = "/auth/login";
+            AuthProvider.registerCommand('reAuthenticate', () => {
+                window.location.assign('/auth/start');
             });
+        }); */
 
-            // If you enabled “upgrade anonymous to authenticated”, implement signIn as well
-            AuthProvider.registerCommand("signIn", async (resolve) => {
-                window.location.href = "/auth/login";
-            });
+        Genesys('registerPlugin', 'AuthProvider', (AuthProvider) => {
+            console.log('AuthProvider registered');
 
-            AuthProvider.registerCommand("signOut", async (resolve) => {
-                await fetch("/auth/logout", { method: "POST", credentials: "include" });
-                resolve();
+            AuthProvider.registerCommand('getAuthCode', (e) => {
+                console.log('getAuthCode CALLED');
+                e.reject(new Error('TEST'));
             });
         });
 
-        // Your "Sign in & Start" button should just trigger your auth flow.
-        async function signInAndStart() {
-            // Typically redirect to /auth/login
-            window.location.href = "/auth/login";
-        }
     </script>
 
 
-    <!-- <script>
+
+    <script>
+        Genesys('subscribe', 'Messenger.ready', () => console.log('Messenger.ready fired'));
+        Genesys('subscribe', 'Auth.ready', () => console.log('Auth.ready fired'));
+
         (function () {
             function whenGenesysReady(cb) {
                 if (typeof Genesys === 'function') return cb();
@@ -369,13 +356,15 @@
                         () => console.log('[Genesys] Messenger.open success'),
                         (err) => console.error('[Genesys] Messenger.open error', err)
                     );
+
+                    // Helpful: detect if Genesys bootstrap loaded at all
+                    console.log('[Genesys] bootstrap queued');
                 });
 
-                // Helpful: detect if Genesys bootstrap loaded at all
-                console.log('[Genesys] bootstrap queued');
+
             });
         })();
-    </script> -->
+    </script>
 </body>
 
 </html>
