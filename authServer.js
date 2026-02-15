@@ -256,39 +256,30 @@ app.post("/auth/server-logs/clear", (req, res) => {
  * Called by your AuthProvider JS (running in the browser) to provide the
  * authorization code (+ redirectUri + optional codeVerifier/nonce) to Genesys Messenger.
  */
-app.get("/auth/code", noStore, (req, res) => {
-  const oidc = ensureOidc(req);
-  serverLog(req, `/auth/code called`);
+app.get("/auth/code", (req, res) => {
+  try {
+    if (!req.session) {
+      return res.status(500).json({ error: "SESSION_MIDDLEWARE_NOT_ACTIVE" });
+    }
 
-  if (!req.session.signedIn || !oidc.authCode) {
-    serverLog(req, `401 Auth code not in session`);
-    return res.status(401).json({ authenticated: false });
+    req.session.oidc = req.session.oidc || {};
+    const oidc = req.session.oidc;
+
+    if (!req.session.signedIn || !oidc.authCode) {
+      return res.status(401).json({ authenticated: false });
+    }
+
+    return res.json({
+      authenticated: true,
+      authCode: oidc.authCode,
+      redirectUri: oidc.redirectUri,
+      nonce: oidc.nonce,
+      codeVerifier: oidc.codeVerifier,
+    });
+  } catch (err) {
+    console.error("GET /auth/code failed:", err);
+    return res.status(500).json({ error: "AUTH_CODE_ENDPOINT_FAILED" });
   }
-
-  if (isExpired(oidc.authCodeCreatedAt)) {
-    // Expired => force re-login
-    delete oidc.authCode;
-    delete oidc.authCodeCreatedAt;
-    req.session.signedIn = false;
-    serverLog(req, `401 Auth code expired !`);
-    return res
-      .status(401)
-      .json({ authenticated: false, reason: "auth_code_expired" });
-  }
-
-  // Shape returned to AuthProvider.getAuthCode
-  const payload = {
-    authenticated: true,
-    authCode: oidc.authCode,
-    redirectUri: oidc.redirectUri,
-    nonce: oidc.nonce,
-  };
-
-  if (USE_PKCE && oidc.codeVerifier) payload.codeVerifier = oidc.codeVerifier;
-
-  serverLog(req, `payload : `, json(payload));
-
-  res.json(payload);
 });
 
 /**
