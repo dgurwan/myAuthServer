@@ -291,54 +291,68 @@
        AuthProvider plugin – supplies authCode to Messenger
        ========================================================= -->
     <script>
-        (function registerAuthProviderWhenReady() {
-            if (typeof Genesys !== 'function') {
-                setTimeout(registerAuthProviderWhenReady, 200);
-                return;
-            }
+        // This assumes you already loaded genesys.min.js and configured deploymentId/environment.
 
-            Genesys('registerPlugin', 'AuthProvider', function (AuthProvider) {
+        // Helper: call your authServer to start login (redirect) or to return current auth result
+        async function fetchAuthResult() {
+            // Example endpoint you already have in your authServer
+            const r = await fetch('/auth/code', { credentials: 'include' });
+            if (!r.ok) throw new Error(`auth/code failed: ${r.status}`);
+            return r.json();
+        }
 
-                async function fetchAuthPayload() {
-                    const r = await fetch('/auth/code', {
-                        credentials: 'include',
-                        cache: 'no-store'
+        // Register AuthProvider so Messenger can request authCode whenever it needs it
+        Genesys("registerPlugin", "AuthProvider", (AuthProvider) => {
+            AuthProvider.registerCommand("getAuthCode", async (resolve, reject) => {
+                try {
+                    const auth = await fetchAuthResult();
+
+                    // You provide the auth code package to Messenger.
+                    // Messenger will exchange it for a Genesys JWT internally. :contentReference[oaicite:3]{index=3}
+                    resolve({
+                        authCode: auth.code,
+                        redirectUri: auth.redirectUri,
+
+                        // PKCE support (if you use it)
+                        codeVerifier: auth.codeVerifier, // optional; required if PKCE enabled :contentReference[oaicite:4]{index=4}
+
+                        // Optional fields depending on IdP (Okta often uses/returns these)
+                        nonce: auth.nonce,
+                        iss: auth.iss,
+                        maxAge: auth.maxAge,
+
+                        // Optional if you implemented refresh token handling
+                        refreshToken: auth.refreshToken
                     });
-                    if (!r.ok) return null;
-                    const j = await r.json().catch(() => null);
-                    if (!j || !j.authenticated) return null;
-                    return j;
+                } catch (e) {
+                    reject(e);
                 }
-
-                // Mandatory: provide authCode/redirectUri (+ optional codeVerifier for PKCE)
-                AuthProvider.registerCommand('getAuthCode', async function (e) {
-                    const data = await fetchAuthPayload();
-                    if (!data) return e.reject && e.reject(new Error('NOT_SIGNED_IN'));
-
-                    const payload = {
-                        authCode: data.authCode,
-                        redirectUri: data.redirectUri,
-                        nonce: data.nonce
-                    };
-                    if (data.codeVerifier) payload.codeVerifier = data.codeVerifier;
-
-                    // auth codes are one-time use; mark consumed (optional)
-                    fetch('/auth/consume', { method: 'POST', credentials: 'include' }).catch(() => { });
-                    e.resolve(payload);
-                });
-
-                // Step-up sign-in requested by Messenger -> redirect to your login start
-                AuthProvider.registerCommand('signIn', function (_e) {
-                    window.location.assign('/auth/start');
-                });
-
-                // Re-auth requested by Messenger (expired/invalid auth) -> login again
-                AuthProvider.registerCommand('reAuthenticate', function (_e) {
-                    window.location.assign('/auth/start');
-                });
             });
-        })();
+
+            // When Messenger decides the current auth is no longer valid, it calls this.
+            AuthProvider.registerCommand("reAuthenticate", async (resolve) => {
+                // In most sites: trigger a fresh login redirect, then resolve (or let reload happen).
+                window.location.href = "/auth/login";
+            });
+
+            // If you enabled “upgrade anonymous to authenticated”, implement signIn as well
+            AuthProvider.registerCommand("signIn", async (resolve) => {
+                window.location.href = "/auth/login";
+            });
+
+            AuthProvider.registerCommand("signOut", async (resolve) => {
+                await fetch("/auth/logout", { method: "POST", credentials: "include" });
+                resolve();
+            });
+        });
+
+        // Your "Sign in & Start" button should just trigger your auth flow.
+        async function signInAndStart() {
+            // Typically redirect to /auth/login
+            window.location.href = "/auth/login";
+        }
     </script>
+
 
     <!-- <script>
         (function () {
