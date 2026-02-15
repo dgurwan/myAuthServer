@@ -354,18 +354,24 @@
     </script>
 
     <script>
-        (function openMessengerWhenReady() {
-            if (typeof Genesys !== 'function') {
-                setTimeout(openMessengerWhenReady, 200);
-                return;
+        (function () {
+            function whenGenesysReady(cb) {
+                if (typeof Genesys === 'function') return cb();
+                setTimeout(() => whenGenesysReady(cb), 200);
             }
 
-            Genesys('subscribe', 'Messenger.ready', function () {
-                Genesys('command', 'Messenger.open', {}, function () {
-                    // opened
-                }, function (err) {
-                    console.error("Couldn't open Messenger.", err);
+            whenGenesysReady(() => {
+                // Log lifecycle (optional)
+                Genesys('subscribe', 'Messenger.ready', function () {
+                    console.log('[Genesys] Messenger.ready');
+                    Genesys('command', 'Messenger.open', {},
+                        () => console.log('[Genesys] Messenger.open success'),
+                        (err) => console.error('[Genesys] Messenger.open error', err)
+                    );
                 });
+
+                // Helpful: detect if Genesys bootstrap loaded at all
+                console.log('[Genesys] bootstrap queued');
             });
         })();
     </script>
