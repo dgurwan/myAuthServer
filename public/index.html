@@ -298,6 +298,7 @@
         });
 
         // These will only fire if the real SDK loads and processes the queue
+        console.log('Genesys function exists:', typeof Genesys);
         Genesys('subscribe', 'App.ready', () => console.log('[Genesys] App.ready'));
         Genesys('subscribe', 'Messenger.ready', () => console.log('[Genesys] Messenger.ready'));
         Genesys('subscribe', 'Auth.ready', () => console.log('[Genesys] Auth.ready'));
@@ -309,10 +310,7 @@
        ========================================================= -->
     <script>
         // This assumes you already loaded genesys.min.js and configured deploymentId/environment.
-        console.log('Genesys function exists:', typeof Genesys);
-        Genesys('subscribe', 'App.ready', () => console.log('App.ready'));
-        Genesys('subscribe', 'Messenger.ready', () => console.log('Messenger.ready'));
-        Genesys('subscribe', 'Auth.ready', () => console.log('Auth.ready'));
+
 
         // Helper: call your authServer to start login (redirect) or to return current auth result
         async function fetchAuthResult() {
