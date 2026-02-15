@@ -275,17 +275,34 @@
     <script type="text/javascript" charset="utf-8">
         (function (g, e, n, es, ys) {
             g['_genesysJs'] = e;
-            g[e] = g[e] || function () {
-                (g[e].q = g[e].q || []).push(arguments)
-            };
+            g[e] = g[e] || function () { (g[e].q = g[e].q || []).push(arguments) };
             g[e].t = 1 * new Date();
             g[e].c = es;
-            ys = document.createElement('script'); ys.async = 1; ys.src = n; ys.charset = 'utf-8'; document.head.appendChild(ys);
+
+            ys = document.createElement('script');
+            ys.async = 1;
+            ys.src = n;
+            ys.charset = 'utf-8';
+
+            ys.onload = function () {
+                console.log('[Genesys] genesys.min.js LOADED');
+            };
+            ys.onerror = function (err) {
+                console.error('[Genesys] genesys.min.js FAILED to load', err);
+            };
+
+            document.head.appendChild(ys);
         })(window, 'Genesys', 'https://apps.mypurecloud.ie/genesys-bootstrap/genesys.min.js', {
             environment: 'prod-euw1',
             deploymentId: '7c5f5753-2d3b-4aad-8dd8-6b4fa0a8ab77'
         });
+
+        // These will only fire if the real SDK loads and processes the queue
+        Genesys('subscribe', 'App.ready', () => console.log('[Genesys] App.ready'));
+        Genesys('subscribe', 'Messenger.ready', () => console.log('[Genesys] Messenger.ready'));
+        Genesys('subscribe', 'Auth.ready', () => console.log('[Genesys] Auth.ready'));
     </script>
+
 
     <!-- =========================================================
        AuthProvider plugin – supplies authCode to Messenger
