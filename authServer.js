@@ -34,7 +34,8 @@ const IDP_AUTHORIZATION_ENDPOINT =
 // OIDC client config (must match the IdP registered client)
 const CLIENT_ID = process.env.OIDC_CLIENT_ID || "demo-client";
 const REDIRECT_URI =
-  process.env.OIDC_REDIRECT_URI || `http://localhost:${PORT}/auth/callback`;
+  process.env.OIDC_REDIRECT_URI ||
+  `https://myauthserver-8kk1.onrender.com:${PORT}/auth/callback`;
 // PKCE recommended; demo supports on/off
 const USE_PKCE = (process.env.OIDC_USE_PKCE || "true").toLowerCase() === "true";
 
@@ -52,6 +53,8 @@ const AUTH_CODE_TTL_SECONDS = parseInt(
   10,
 );
 
+app.set("trust proxy", 1);
+
 // ---------------------------
 // SESSION
 // ---------------------------
@@ -64,7 +67,7 @@ app.use(
     cookie: {
       httpOnly: true,
       sameSite: "lax",
-      secure: false, // true if HTTPS
+      secure: true, // true if HTTPS
       path: "/", // ensure consistent cookie path
     },
   }),
@@ -347,7 +350,7 @@ app.get("/auth/status", noStore, (req, res) => {
 // START SERVER
 // ---------------------------
 app.listen(PORT, () => {
-  console.log(`AuthServer running: http://localhost:${PORT}`);
+  console.log(`AuthServer running:${PORT}`);
   console.log(`Using IdP authorize endpoint: ${IDP_AUTHORIZATION_ENDPOINT}`);
   console.log(`ClientId: ${CLIENT_ID}`);
   console.log(`RedirectUri: ${REDIRECT_URI}`);
