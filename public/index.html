@@ -292,6 +292,10 @@
        ========================================================= -->
     <script>
         // This assumes you already loaded genesys.min.js and configured deploymentId/environment.
+        console.log('Genesys function exists:', typeof Genesys);
+        Genesys('subscribe', 'App.ready', () => console.log('App.ready'));
+        Genesys('subscribe', 'Messenger.ready', () => console.log('Messenger.ready'));
+        Genesys('subscribe', 'Auth.ready', () => console.log('Auth.ready'));
 
         // Helper: call your authServer to start login (redirect) or to return current auth result
         async function fetchAuthResult() {
@@ -333,6 +337,14 @@
                 e.reject(new Error('TEST'));
             });
         });
+
+
+        // Force-load messenger plugin and open it
+        Genesys('command', 'Messenger.open', {},
+            () => console.log('Messenger.open success'),
+            (err) => console.error('Messenger.open error', err)
+        );
+
 
     </script>
 
