@@ -321,8 +321,9 @@
         }
 
         // After the Genesys snippet
-        /* Genesys('registerPlugin', 'AuthProvider', (AuthProvider) => {
+        Genesys('registerPlugin', 'AuthProvider', (AuthProvider) => {
             AuthProvider.registerCommand('getAuthCode', async (e) => {
+                console.log('getAuthCode CALLED');
                 try {
                     const r = await fetch('/auth/code', { credentials: 'include', cache: 'no-store' });
                     if (!r.ok) return e.reject(new Error('NOT_SIGNED_IN'));
@@ -341,15 +342,6 @@
 
             AuthProvider.registerCommand('reAuthenticate', () => {
                 window.location.assign('/auth/start');
-            });
-        }); */
-
-        Genesys('registerPlugin', 'AuthProvider', (AuthProvider) => {
-            console.log('AuthProvider registered');
-
-            AuthProvider.registerCommand('getAuthCode', (e) => {
-                console.log('getAuthCode CALLED');
-                e.reject(new Error('TEST'));
             });
         });
 
